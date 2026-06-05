@@ -1,5 +1,6 @@
 const prisma = require("../db/prisma");
 const response = require("../utils/response");
+const { uploadToSupabase } = require("../middlewares/upload.middleware");
 
 // GET /api/berita — List semua berita
 const getBerita = async (req, res) => {
@@ -35,7 +36,7 @@ const buatBerita = async (req, res) => {
     const { judul, isi, penulis } = req.body;
     if (!judul || !isi) return response.error(res, "Judul dan isi wajib diisi", 400);
 
-    const foto = req.file ? req.file.path : null;
+    const foto = req.file ? await uploadToSupabase(req.file, "berita") : null;
 
     const berita = await prisma.berita.create({
       data: { judul, isi, foto, penulis: penulis || req.user.nama },
@@ -51,7 +52,7 @@ const buatBerita = async (req, res) => {
 const editBerita = async (req, res) => {
   try {
     const { judul, isi, penulis } = req.body;
-    const foto = req.file ? req.file.path : undefined;
+    const foto = req.file ? await uploadToSupabase(req.file, "tempat") : undefined;
 
     const berita = await prisma.berita.update({
       where: { id: req.params.id },

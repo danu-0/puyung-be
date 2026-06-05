@@ -1,6 +1,7 @@
 const prisma = require("../db/prisma");
 const response = require("../utils/response");
 const { kirimNotifikasi, upsertAktivitas } = require("../utils/notification");
+const { uploadToSupabase } = require("../middlewares/upload.middleware");
 
 // POST /api/administrasi — Ajukan dokumen (user)
 const ajukanAdministrasi = async (req, res) => {
@@ -8,15 +9,26 @@ const ajukanAdministrasi = async (req, res) => {
     const { jenis, dataDiri } = req.body;
     const userId = req.user.id;
 
-    if (!jenis || !dataDiri) return response.error(res, "Jenis dan data diri wajib diisi", 400);
+    if (!jenis || !dataDiri)
+      return response.error(res, "Jenis dan data diri wajib diisi", 400);
 
-    const dokumen = req.files ? req.files.map((f) => f.path) : [];
+    const dokumen =
+      req.files && req.files.length > 0
+        ? await Promise.all(
+            req.files.map((f) => uploadToSupabase(f, "administrasi")),
+          )
+        : [];
 
     let parsedData;
     try {
-      parsedData = typeof dataDiri === "string" ? JSON.parse(dataDiri) : dataDiri;
+      parsedData =
+        typeof dataDiri === "string" ? JSON.parse(dataDiri) : dataDiri;
     } catch {
-      return response.error(res, "Format data diri tidak valid (harus JSON)", 400);
+      return response.error(
+        res,
+        "Format data diri tidak valid (harus JSON)",
+        400,
+      );
     }
 
     const admin = await prisma.administrasi.create({
@@ -31,9 +43,19 @@ const ajukanAdministrasi = async (req, res) => {
       BANSOS: "Pengajuan Bansos",
     };
 
-    await upsertAktivitas(userId, "administrasi", admin.id, label[jenis] || jenis, "MENUNGGU");
+    await upsertAktivitas(
+      userId,
+      "administrasi",
+      admin.id,
+      label[jenis] || jenis,
+      "MENUNGGU",
+    );
 
-    return response.created(res, admin, "Pengajuan administrasi berhasil dikirim");
+    return response.created(
+      res,
+      admin,
+      "Pengajuan administrasi berhasil dikirim",
+    );
   } catch (err) {
     console.error(err);
     return response.error(res, "Gagal mengajukan administrasi");
@@ -64,7 +86,11 @@ const getAdministrasi = async (req, res) => {
       prisma.administrasi.count({ where }),
     ]);
 
-    return response.paginate(res, data, { total, page: parseInt(page), limit: parseInt(limit) });
+    return response.paginate(res, data, {
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
   } catch (err) {
     return response.error(res, "Gagal mengambil data administrasi");
   }
@@ -96,8 +122,11 @@ const updateStatusAdministrasi = async (req, res) => {
     });
 
     const label = {
-      KTP: "KTP", KK: "KK", SURAT_NIKAH: "Surat Nikah",
-      AKTA_KELAHIRAN: "Akta Kelahiran", BANSOS: "Bansos",
+      KTP: "KTP",
+      KK: "KK",
+      SURAT_NIKAH: "Surat Nikah",
+      AKTA_KELAHIRAN: "Akta Kelahiran",
+      BANSOS: "Bansos",
     };
 
     const pesanStatus = {
@@ -111,10 +140,16 @@ const updateStatusAdministrasi = async (req, res) => {
       `Update Pengajuan ${label[admin.jenis]}`,
       pesanStatus[status] || "Status pengajuan diperbarui",
       "administrasi",
-      admin.id
+      admin.id,
     );
 
-    await upsertAktivitas(admin.userId, "administrasi", admin.id, `Pengajuan ${label[admin.jenis]}`, status);
+    await upsertAktivitas(
+      admin.userId,
+      "administrasi",
+      admin.id,
+      `Pengajuan ${label[admin.jenis]}`,
+      status,
+    );
 
     return response.success(res, admin, "Status administrasi diperbarui");
   } catch (err) {
@@ -122,4 +157,9 @@ const updateStatusAdministrasi = async (req, res) => {
   }
 };
 
-module.exports = { ajukanAdministrasi, getAdministrasi, getDetailAdministrasi, updateStatusAdministrasi };
+module.exports = {
+  ajukanAdministrasi,
+  getAdministrasi,
+  getDetailAdministrasi,
+  updateStatusAdministrasi,
+};

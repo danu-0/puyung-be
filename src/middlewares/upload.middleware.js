@@ -1,19 +1,13 @@
 const multer = require("multer");
 const path = require("path");
-const fs = require("fs");
+const { createClient } = require("@supabase/supabase-js");
 
-const createStorage = (folder) => {
-  const dir = `uploads/${folder}`;
-  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+const supabase = createClient(
+  process.env.SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_KEY
+);
 
-  return multer.diskStorage({
-    destination: (req, file, cb) => cb(null, dir),
-    filename: (req, file, cb) => {
-      const unique = `${Date.now()}-${Math.round(Math.random() * 1e9)}`;
-      cb(null, `${unique}${path.extname(file.originalname)}`);
-    },
-  });
-};
+const BUCKET = process.env.SUPABASE_BUCKET || "puyung-serve";
 
 const fileFilter = (req, file, cb) => {
   const allowed = /jpeg|jpg|png|pdf/;
@@ -23,23 +17,29 @@ const fileFilter = (req, file, cb) => {
   cb(new Error("Hanya file gambar (jpg, png) dan PDF yang diizinkan"));
 };
 
-const uploadPengaduan = multer({
-  storage: createStorage("pengaduan"),
-  fileFilter,
-  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 },
-}).array("foto", 5);
+// Upload buffer ke Supabase Storage, return public URL
+const uploadToSupabase = async (file, folder) => {
+  const ext = path.extname(file.originalname);
+  const filename = `${folder}/${Date.now()}-${Math.round(Math.random() * 1e9)}${ext}`;
 
-const uploadAdministrasi = multer({
-  storage: createStorage("administrasi"),
-  fileFilter,
-  limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 },
-}).array("dokumen", 10);
+  const { error } = await supabase.storage
+    .from(BUCKET)
+    .upload(filename, file.buffer, {
+      contentType: file.mimetype,
+      upsert: false,
+    });
 
-const uploadSingle = (folder) =>
-  multer({
-    storage: createStorage(folder),
-    fileFilter,
-    limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 },
-  }).single("foto");
+  if (error) throw new Error(`Upload gagal: ${error.message}`);
 
-module.exports = { uploadPengaduan, uploadAdministrasi, uploadSingle };
+  const { data } = supabase.storage.from(BUCKET).getPublicUrl(filename);
+  return data.publicUrl;
+};
+
+const memoryStorage = multer.memoryStorage();
+const opts = { storage: memoryStorage, fileFilter, limits: { fileSize: parseInt(process.env.MAX_FILE_SIZE) || 5 * 1024 * 1024 } };
+
+const uploadPengaduan    = multer(opts).array("foto", 5);
+const uploadAdministrasi = multer(opts).array("dokumen", 10);
+const uploadSingle       = () => multer(opts).single("foto");
+
+module.exports = { uploadPengaduan, uploadAdministrasi, uploadSingle, uploadToSupabase };

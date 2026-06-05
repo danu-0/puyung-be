@@ -1,6 +1,7 @@
 const prisma = require("../db/prisma");
 const response = require("../utils/response");
 const { kirimNotifikasi, upsertAktivitas } = require("../utils/notification");
+const { uploadToSupabase } = require("../middlewares/upload.middleware");
 
 // POST /api/pengaduan — Buat laporan baru (user)
 const buatPengaduan = async (req, res) => {
@@ -9,10 +10,19 @@ const buatPengaduan = async (req, res) => {
     const userId = req.user.id;
 
     if (!judul || !deskripsi || !lokasi) {
-      return response.error(res, "Judul, deskripsi, dan lokasi wajib diisi", 400);
+      return response.error(
+        res,
+        "Judul, deskripsi, dan lokasi wajib diisi",
+        400,
+      );
     }
 
-    const foto = req.files ? req.files.map((f) => f.path) : [];
+    const foto =
+      req.files && req.files.length > 0
+        ? await Promise.all(
+            req.files.map((f) => uploadToSupabase(f, "pengaduan")),
+          )
+        : [];
 
     const pengaduan = await prisma.pengaduan.create({
       data: {
@@ -60,7 +70,11 @@ const getPengaduan = async (req, res) => {
       prisma.pengaduan.count({ where }),
     ]);
 
-    return response.paginate(res, data, { total, page: parseInt(page), limit: parseInt(limit) });
+    return response.paginate(res, data, {
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
   } catch (err) {
     return response.error(res, "Gagal mengambil data pengaduan");
   }
@@ -73,7 +87,8 @@ const getDetailPengaduan = async (req, res) => {
       where: { id: req.params.id },
       include: { user: { select: { nama: true, nomorHp: true } } },
     });
-    if (!pengaduan) return response.error(res, "Pengaduan tidak ditemukan", 404);
+    if (!pengaduan)
+      return response.error(res, "Pengaduan tidak ditemukan", 404);
     return response.success(res, pengaduan);
   } catch (err) {
     return response.error(res);
@@ -103,10 +118,16 @@ const updateStatusPengaduan = async (req, res) => {
       `Update Pengaduan: ${pengaduan.judul}`,
       pesanStatus[status] || "Status pengaduan diperbarui",
       "pengaduan",
-      pengaduan.id
+      pengaduan.id,
     );
 
-    await upsertAktivitas(pengaduan.userId, "pengaduan", pengaduan.id, pengaduan.judul, status);
+    await upsertAktivitas(
+      pengaduan.userId,
+      "pengaduan",
+      pengaduan.id,
+      pengaduan.judul,
+      status,
+    );
 
     return response.success(res, pengaduan, "Status pengaduan diperbarui");
   } catch (err) {
@@ -114,4 +135,9 @@ const updateStatusPengaduan = async (req, res) => {
   }
 };
 
-module.exports = { buatPengaduan, getPengaduan, getDetailPengaduan, updateStatusPengaduan };
+module.exports = {
+  buatPengaduan,
+  getPengaduan,
+  getDetailPengaduan,
+  updateStatusPengaduan,
+};

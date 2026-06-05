@@ -1,6 +1,7 @@
 const prisma = require("../db/prisma");
 const response = require("../utils/response");
 const bcrypt = require("bcrypt");
+const { uploadToSupabase } = require("../middlewares/upload.middleware");
 
 // ─── Notifikasi ────────────────────────────────────────────────────────────────
 
@@ -18,11 +19,20 @@ const getNotifikasi = async (req, res) => {
         orderBy: { createdAt: "desc" },
       }),
       prisma.notifikasi.count({ where: { userId: req.user.id } }),
-      prisma.notifikasi.count({ where: { userId: req.user.id, dibaca: false } }),
+      prisma.notifikasi.count({
+        where: { userId: req.user.id, dibaca: false },
+      }),
     ]);
 
-    return response.paginate(res, data, { total, unread, page: parseInt(page), limit: parseInt(limit) });
-  } catch (err) { return response.error(res); }
+    return response.paginate(res, data, {
+      total,
+      unread,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+  } catch (err) {
+    return response.error(res);
+  }
 };
 
 // PUT /api/notifikasi/:id/baca — Tandai 1 notifikasi dibaca
@@ -33,7 +43,9 @@ const bacaNotifikasi = async (req, res) => {
       data: { dibaca: true },
     });
     return response.success(res, null, "Notifikasi ditandai dibaca");
-  } catch (err) { return response.error(res); }
+  } catch (err) {
+    return response.error(res);
+  }
 };
 
 // PUT /api/notifikasi/baca-semua — Tandai semua notifikasi dibaca
@@ -44,7 +56,9 @@ const bacaSemuaNotifikasi = async (req, res) => {
       data: { dibaca: true },
     });
     return response.success(res, null, "Semua notifikasi ditandai dibaca");
-  } catch (err) { return response.error(res); }
+  } catch (err) {
+    return response.error(res);
+  }
 };
 
 // ─── Aktivitas ─────────────────────────────────────────────────────────────────
@@ -61,7 +75,9 @@ const getAktivitas = async (req, res) => {
       orderBy: { updatedAt: "desc" },
     });
     return response.success(res, data);
-  } catch (err) { return response.error(res); }
+  } catch (err) {
+    return response.error(res);
+  }
 };
 
 // ─── User / Profil ─────────────────────────────────────────────────────────────
@@ -71,43 +87,72 @@ const getProfil = async (req, res) => {
   try {
     const user = await prisma.user.findUnique({
       where: { id: req.user.id },
-      select: { id: true, nomorHp: true, nama: true, role: true, foto: true, alamat: true, nik: true, createdAt: true },
+      select: {
+        id: true,
+        nomorHp: true,
+        nama: true,
+        role: true,
+        foto: true,
+        alamat: true,
+        nik: true,
+        createdAt: true,
+      },
     });
     return response.success(res, user);
-  } catch (err) { return response.error(res); }
+  } catch (err) {
+    return response.error(res);
+  }
 };
 
 // PUT /api/users/profil
 const updateProfil = async (req, res) => {
   try {
     const { nama, alamat, nik } = req.body;
-    const foto = req.file ? req.file.path : undefined;
+    const foto = req.file
+      ? await uploadToSupabase(req.file, "profil")
+      : undefined;
 
     const user = await prisma.user.update({
       where: { id: req.user.id },
       data: { nama, alamat, nik, ...(foto && { foto }) },
-      select: { id: true, nomorHp: true, nama: true, role: true, foto: true, alamat: true, nik: true },
+      select: {
+        id: true,
+        nomorHp: true,
+        nama: true,
+        role: true,
+        foto: true,
+        alamat: true,
+        nik: true,
+      },
     });
 
     return response.success(res, user, "Profil berhasil diperbarui");
-  } catch (err) { return response.error(res, "Gagal update profil"); }
+  } catch (err) {
+    return response.error(res, "Gagal update profil");
+  }
 };
 
 // PUT /api/users/ganti-password
 const gantiPassword = async (req, res) => {
   try {
     const { passwordLama, passwordBaru } = req.body;
-    if (!passwordLama || !passwordBaru) return response.error(res, "Password lama dan baru wajib diisi", 400);
+    if (!passwordLama || !passwordBaru)
+      return response.error(res, "Password lama dan baru wajib diisi", 400);
 
     const user = await prisma.user.findUnique({ where: { id: req.user.id } });
     const valid = await bcrypt.compare(passwordLama, user.password);
     if (!valid) return response.error(res, "Password lama salah", 401);
 
     const hashed = await bcrypt.hash(passwordBaru, 10);
-    await prisma.user.update({ where: { id: req.user.id }, data: { password: hashed } });
+    await prisma.user.update({
+      where: { id: req.user.id },
+      data: { password: hashed },
+    });
 
     return response.success(res, null, "Password berhasil diubah");
-  } catch (err) { return response.error(res, "Gagal ganti password"); }
+  } catch (err) {
+    return response.error(res, "Gagal ganti password");
+  }
 };
 
 // GET /api/users — List semua user (admin)
@@ -122,18 +167,36 @@ const getAllUsers = async (req, res) => {
         where,
         skip,
         take: parseInt(limit),
-        select: { id: true, nomorHp: true, nama: true, role: true, alamat: true, createdAt: true },
+        select: {
+          id: true,
+          nomorHp: true,
+          nama: true,
+          role: true,
+          alamat: true,
+          createdAt: true,
+        },
         orderBy: { createdAt: "desc" },
       }),
       prisma.user.count({ where }),
     ]);
 
-    return response.paginate(res, data, { total, page: parseInt(page), limit: parseInt(limit) });
-  } catch (err) { return response.error(res); }
+    return response.paginate(res, data, {
+      total,
+      page: parseInt(page),
+      limit: parseInt(limit),
+    });
+  } catch (err) {
+    return response.error(res);
+  }
 };
 
 module.exports = {
-  getNotifikasi, bacaNotifikasi, bacaSemuaNotifikasi,
+  getNotifikasi,
+  bacaNotifikasi,
+  bacaSemuaNotifikasi,
   getAktivitas,
-  getProfil, updateProfil, gantiPassword, getAllUsers,
+  getProfil,
+  updateProfil,
+  gantiPassword,
+  getAllUsers,
 };

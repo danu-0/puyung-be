@@ -1,5 +1,6 @@
 const prisma = require("../db/prisma");
 const response = require("../utils/response");
+const { uploadToSupabase } = require("../middlewares/upload.middleware");
 
 // ─── Harga Pangan ──────────────────────────────────────────────────────────────
 const getHargaPangan = async (req, res) => {
@@ -60,7 +61,7 @@ const tambahTempat = async (req, res) => {
     if (!nama || !kategori || !alamat || !latitude || !longitude) {
       return response.error(res, "Field wajib belum lengkap", 400);
     }
-    const foto = req.file ? req.file.path : null;
+    const foto = req.file ? await uploadToSupabase(req.file, "tempat") : null;
     const data = await prisma.tempat.create({
       data: { nama, deskripsi, kategori, alamat, latitude: parseFloat(latitude), longitude: parseFloat(longitude), foto },
     });
@@ -71,7 +72,7 @@ const tambahTempat = async (req, res) => {
 const updateTempat = async (req, res) => {
   try {
     const { nama, deskripsi, kategori, alamat, latitude, longitude } = req.body;
-    const foto = req.file ? req.file.path : undefined;
+    const foto = req.file ? await uploadToSupabase(req.file, "tempat") : undefined;
     const data = await prisma.tempat.update({
       where: { id: req.params.id },
       data: {
@@ -144,7 +145,7 @@ const buatPemberitahuan = async (req, res) => {
   try {
     const { judul, isi, jenis } = req.body;
     if (!judul || !isi || !jenis) return response.error(res, "Judul, isi, dan jenis wajib diisi", 400);
-    const foto = req.file ? req.file.path : null;
+    const foto = req.file ? await uploadToSupabase(req.file, "tempat") : null;
 
     const data = await prisma.pemberitahuan.create({ data: { judul, isi, jenis, foto } });
 
@@ -158,7 +159,7 @@ const buatPemberitahuan = async (req, res) => {
 const updatePemberitahuan = async (req, res) => {
   try {
     const { judul, isi, jenis, aktif } = req.body;
-    const foto = req.file ? req.file.path : undefined;
+    const foto = req.file ? await uploadToSupabase(req.file, "tempat") : undefined;
     const data = await prisma.pemberitahuan.update({
       where: { id: req.params.id },
       data: { judul, isi, jenis, aktif, ...(foto && { foto }) },
