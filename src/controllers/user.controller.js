@@ -124,6 +124,7 @@ const updateProfil = async (req, res) => {
         alamat: true,
         nik: true,
       },
+      
     });
 
     return response.success(res, user, "Profil berhasil diperbarui");
