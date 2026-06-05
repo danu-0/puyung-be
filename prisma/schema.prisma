@@ -1,0 +1,203 @@
+// prisma/schema.prisma
+// Jalankan: npx prisma generate && npx prisma migrate dev
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── ENUM ─────────────────────────────────────────────────────────────────────
+
+enum Role {
+  PENDUDUK
+  PENDATANG
+  OPERATOR
+  KEPALA_DESA
+}
+
+enum StatusLaporan {
+  MENUNGGU
+  DIPROSES
+  SELESAI
+  DITOLAK
+}
+
+enum StatusAdministrasi {
+  MENUNGGU
+  DIPROSES
+  SELESAI
+  DITOLAK
+}
+
+enum JenisAdministrasi {
+  KTP
+  KK
+  SURAT_NIKAH
+  AKTA_KELAHIRAN
+  BANSOS
+}
+
+enum JenisPemberitahuan {
+  ACARA
+  PEMADAMAN_LISTRIK
+  BENCANA_ALAM
+  KERUSAKAN
+  ANGIN_KENCANG
+  LAINNYA
+}
+
+enum JenisDarurat {
+  POLISI
+  AMBULAN
+  DAMKAR
+}
+
+// ─── MODEL ────────────────────────────────────────────────────────────────────
+
+model User {
+  id          String   @id @default(cuid())
+  nomorHp     String   @unique
+  nama        String
+  password    String
+  role        Role     @default(PENDUDUK)
+  foto        String?
+  alamat      String?
+  nik         String?  @unique
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  pengaduan      Pengaduan[]
+  administrasi   Administrasi[]
+  notifikasi     Notifikasi[]
+  aktivitas      Aktivitas[]
+
+  @@map("users")
+}
+
+model Pengaduan {
+  id          String        @id @default(cuid())
+  userId      String
+  user        User          @relation(fields: [userId], references: [id])
+  judul       String
+  deskripsi   String
+  lokasi      String
+  latitude    Float?
+  longitude   Float?
+  waktu       DateTime
+  foto        String[]
+  status      StatusLaporan @default(MENUNGGU)
+  catatan     String?       // Catatan dari admin saat proses/tolak
+  createdAt   DateTime      @default(now())
+  updatedAt   DateTime      @updatedAt
+
+  @@map("pengaduan")
+}
+
+model Berita {
+  id          String   @id @default(cuid())
+  judul       String
+  isi         String
+  foto        String?
+  penulis     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("berita")
+}
+
+model HargaPangan {
+  id          String   @id @default(cuid())
+  namaBarang  String
+  harga       Float
+  satuan      String   // kg, liter, ikat, dll
+  updatedAt   DateTime @updatedAt
+
+  @@map("harga_pangan")
+}
+
+model Tempat {
+  id          String   @id @default(cuid())
+  nama        String
+  deskripsi   String?
+  kategori    String   // kantor, kesehatan, pendidikan, wisata, dll
+  alamat      String
+  latitude    Float
+  longitude   Float
+  foto        String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("tempat")
+}
+
+model Administrasi {
+  id          String             @id @default(cuid())
+  userId      String
+  user        User               @relation(fields: [userId], references: [id])
+  jenis       JenisAdministrasi
+  status      StatusAdministrasi @default(MENUNGGU)
+  dataDiri    Json               // Data form sesuai jenis administrasi
+  dokumen     String[]           // File yang diupload
+  catatan     String?            // Catatan dari admin
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@map("administrasi")
+}
+
+model Notifikasi {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  judul       String
+  pesan       String
+  tipe        String   // pengaduan, administrasi, pemberitahuan
+  referensiId String?  // ID pengaduan/administrasi terkait
+  dibaca      Boolean  @default(false)
+  createdAt   DateTime @default(now())
+
+  @@map("notifikasi")
+}
+
+model Aktivitas {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  tipe        String   // pengaduan, administrasi
+  referensiId String
+  judul       String
+  status      String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("aktivitas")
+}
+
+model Pemberitahuan {
+  id          String             @id @default(cuid())
+  judul       String
+  isi         String
+  jenis       JenisPemberitahuan
+  foto        String?
+  aktif       Boolean            @default(true)
+  createdAt   DateTime           @default(now())
+  updatedAt   DateTime           @updatedAt
+
+  @@map("pemberitahuan")
+}
+
+model KontakDarurat {
+  id          String       @id @default(cuid())
+  jenis       JenisDarurat
+  nama        String
+  nomor       String
+  aktif       Boolean      @default(true)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  @@map("kontak_darurat")
+}
