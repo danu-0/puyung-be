@@ -78,4 +78,37 @@ const getMe = async (req, res) => {
   }
 };
 
-module.exports = { register, login, getMe };
+const logout = async (req, res) => {
+  try {
+    const authHeader = req.headers["authorization"];
+    const token = authHeader && authHeader.split(" ")[1];
+
+    if (!token) {
+      return response.error(res, "Token tidak ditemukan", 400);
+    }
+
+    // Decode tanpa verify untuk ambil waktu expired-nya
+    const decoded = jwt.decode(token);
+    if (!decoded || !decoded.exp) {
+      return response.error(res, "Token tidak valid", 400);
+    }
+
+    const expiredAt = new Date(decoded.exp * 1000); // exp dalam detik → ms
+
+    // Masukkan token ke blacklist
+    await prisma.tokenBlacklist.create({
+      data: { token, expiredAt },
+    });
+
+    return response.success(res, null, "Logout berhasil");
+  } catch (err) {
+    // Jika token sudah ada di blacklist (unique constraint)
+    if (err.code === "P2002") {
+      return response.success(res, null, "Logout berhasil");
+    }
+    console.error(err);
+    return response.error(res, "Gagal logout");
+  }
+};
+
+module.exports = { register, login, getMe, logout };

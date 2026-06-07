@@ -2,6 +2,7 @@ require("dotenv").config();
 const express = require("express");
 const cors = require("cors");
 const path = require("path");
+const prisma = require("./db/prisma")
 
 const app = express();
 
@@ -44,6 +45,16 @@ app.use((err, req, res, next) => {
     message: err.message || "Terjadi kesalahan pada server",
   });
 });
+
+// Cleanup token blacklist yang sudah expired — jalankan setiap 24 jam
+setInterval(async () => {
+  const deleted = await prisma.tokenBlacklist.deleteMany({
+    where: { expiredAt: { lt: new Date() } },
+  });
+  if (deleted.count > 0) {
+    console.log(`🧹 Cleaned ${deleted.count} expired tokens from blacklist`);
+  }
+}, 24 * 60 * 60 * 1000);
 
 // ─── Start server ─────────────────────────────────────────────────────────────
 const PORT = process.env.PORT || 3000;

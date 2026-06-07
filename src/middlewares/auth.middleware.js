@@ -1,7 +1,8 @@
 const jwt = require("jsonwebtoken");
+const prisma = require("../db/prisma")
 
 // Verifikasi token JWT
-const verifyToken = (req, res, next) => {
+const verifyToken = async (req, res, next) => {
   const authHeader = req.headers["authorization"];
   const token = authHeader && authHeader.split(" ")[1]; // Bearer <token>
 
@@ -9,7 +10,18 @@ const verifyToken = (req, res, next) => {
     return res.status(401).json({ success: false, message: "Token tidak ditemukan" });
   }
 
+
+  
   try {
+    
+    const blacklisted = await prisma.tokenBlacklist.findUnique({
+      where: { token },
+    });
+
+    if (blacklisted) {
+      return res.status(401).json({ success: false, message: "Sesi sudah berakhir. Silakan login kembali" });
+    }
+
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
     req.user = decoded;
     next();

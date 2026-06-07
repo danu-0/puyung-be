@@ -78,6 +78,15 @@ model User {
   @@map("users")
 }
 
+model TokenBlacklist {
+  id        String   @id @default(cuid())
+  token     String   @unique
+  expiredAt DateTime // Waktu token expired (dari JWT), untuk auto-cleanup
+  createdAt DateTime @default(now())
+
+  @@map("token_blacklist")
+}
+
 model Pengaduan {
   id          String        @id @default(cuid())
   userId      String
